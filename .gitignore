@@ -16,3 +16,5 @@ scripts/testApartmentsCurl.js
 scripts/testDecodoUS.js
 scripts/testProxy.js
 scripts/updateProfileProxy.js
+
+demo/output/

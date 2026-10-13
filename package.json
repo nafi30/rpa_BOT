@@ -7,6 +7,7 @@
     "start": "node index.js",
     "test": "node --test",
     "health": "node scripts/healthCheck.js",
+    "demo:local": "node demo/run-demo.js",
     "sync:sheet": "node scripts/syncGoogleSheet.js",
     "setup:profiles": "node scripts/setup5Profiles.js",
     "setup:kernel": "node scripts/fixProfilesKernel.js",

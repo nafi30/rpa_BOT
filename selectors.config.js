@@ -135,6 +135,7 @@ export const defaultSelectors = {
 export const domainConfigs = {
   'hotpads.com': {
     modalTriggers: [
+      'button:has-text("Message")',
       'button:has-text("Contact Property")',
       'button:has-text("Check Availability")',
       'button:has-text("Send Message")',
@@ -142,24 +143,28 @@ export const domainConfigs = {
       'a:has-text("Contact")',
     ],
     name: [
+      '#halo-inline-contact-userName',
       'input[name="name"]',
       'input[id*="name" i]',
       'input[placeholder*="Name" i]',
       '#lead-form-name',
     ],
     email: [
+      '#halo-inline-contact-userEmail',
       'input[name="email"]',
       'input[type="email"]',
       'input[id*="email" i]',
       '#lead-form-email',
     ],
     phone: [
+      '#halo-inline-contact-userPhoneNumber',
       'input[name="phone"]',
       'input[type="tel"]',
       'input[id*="phone" i]',
       '#lead-form-phone',
     ],
     message: [
+      '#halo-inline-contact-userMessage',
       'textarea[name="message"]',
       'textarea[id*="message" i]',
       'textarea[placeholder*="Message" i]',

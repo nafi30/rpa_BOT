@@ -4,7 +4,7 @@ import { config, validateConfig } from './config.js';
 import { AdsPowerClient } from './lib/adspower.js';
 import { CapSolverClient } from './lib/capsolver.js';
 import { connectToAdsPower, safeNavigate, captureErrorScreenshot, disconnectBrowser } from './lib/browser.js';
-import { fillContactForm, submitContactForm, sleep, randomBetween } from './lib/formFiller.js';
+import { fillContactForm, validateInquiryFields, submitContactForm, sleep, randomBetween } from './lib/formFiller.js';
 import { getSelectorsForUrl } from './selectors.config.js';
 import { loadLeads, getProcessedUrls, logResult, isAllowedLeadUrl } from './lib/dataManager.js';
 import { generateMessage } from './lib/spintaxEngine.js';
@@ -211,8 +211,9 @@ async function main() {
       console.log('[FormFiller] Identifying form inputs...');
       const { filledFields, missingFields } = await fillContactForm(page, lead, selectors);
 
-      if (filledFields.length === 0) {
-        throw new Error(`Could not locate any valid form input fields matching target selectors.`);
+      const missingInquiryFields = validateInquiryFields({ filledFields }, lead);
+      if (missingInquiryFields.length > 0) {
+        throw new Error(`Inquiry form incomplete; refusing to submit. Missing: ${missingInquiryFields.join(', ')}.`);
       }
 
       console.log(`[FormFiller] Filled fields: [${filledFields.join(', ')}]. Missing: [${missingFields.join(', ')}]`);

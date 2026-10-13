@@ -1,0 +1,18 @@
+.env
+.env.*
+!.env.example
+node_modules/
+leads.csv
+leads.json
+results.csv
+screenshots/
+*.tar.gz
+*.b64
+VPS_DEPLOYMENT_GUIDE.md
+
+# Legacy diagnostics contain embedded proxy credentials and must be rewritten first.
+scripts/inspectAccessDenied.js
+scripts/testApartmentsCurl.js
+scripts/testDecodoUS.js
+scripts/testProxy.js
+scripts/updateProfileProxy.js

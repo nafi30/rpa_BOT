@@ -58,5 +58,5 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" "mkdir -p '$release'"
           rsync -az --exclude='.git/' ./ "$target:$release/"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" \
-            "cd '$release' && npm ci --omit=dev && node --check index.js && node --check scripts/diagnoseVps.js"
+            "cd '$release' && npm ci --omit=dev && npm test && node --check index.js && node --check scripts/diagnoseVps.js"
           echo "Validated source staged at $release; live bot was not changed."

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import fs from 'fs';
 import axios from 'axios';
 import { config, validateConfig } from './config.js';
 import { AdsPowerClient } from './lib/adspower.js';
@@ -10,20 +10,13 @@ import { loadLeads, getProcessedUrls, logResult } from './lib/dataManager.js';
 import { generateMessage } from './lib/spintaxEngine.js';
 
 function ensureXvfbEnvironment() {
-  if (process.platform === 'linux') {
-    try {
-      const isXvfbRunning = execSync('pgrep -f "Xvfb :99" || true').toString().trim();
-      if (!isXvfbRunning) {
-        console.log('[Display] Initializing Xvfb virtual display on :99 (1920x1080)...');
-        execSync('which Xvfb > /dev/null || (apt-get update && apt-get install -y xvfb)');
-        execSync('nohup Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp > /dev/null 2>&1 &');
-      }
-      process.env.DISPLAY = process.env.DISPLAY || ':99';
-      console.log(`[Display] Active DISPLAY set to: ${process.env.DISPLAY}`);
-    } catch (err) {
-      console.warn(`[Display] Virtual screen init note: ${err.message}`);
-    }
+  if (process.platform !== 'linux' || config.adspower.headless) return;
+  process.env.DISPLAY ||= ':99';
+  const localDisplay = process.env.DISPLAY.match(/^:(\d+)/);
+  if (localDisplay && !fs.existsSync(`/tmp/.X11-unix/X${localDisplay[1]}`)) {
+    throw new Error(`DISPLAY=${process.env.DISPLAY} has no X11 socket. Start Xvfb before the bot.`);
   }
+  console.log(`[Display] Bot DISPLAY: ${process.env.DISPLAY}; the AdsPower runtime needs the same display.`);
 }
 
 // Global reference for clean shutdown
@@ -32,7 +25,10 @@ let currentProfileId = null;
 let adsClient = null;
 
 // Graceful exit handlers
-async function cleanupOnExit() {
+let shuttingDown = false;
+async function cleanupOnExit(exitCode = process.exitCode || 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log('\n[Shutdown] Cleaning up active sessions before exit...');
   if (activeBrowser) {
     await disconnectBrowser(activeBrowser).catch(() => {});
@@ -40,11 +36,11 @@ async function cleanupOnExit() {
   if (adsClient && currentProfileId) {
     await adsClient.stopBrowser(currentProfileId).catch(() => {});
   }
-  process.exit(0);
+  process.exit(exitCode);
 }
 
-process.on('SIGINT', cleanupOnExit);
-process.on('SIGTERM', cleanupOnExit);
+process.on('SIGINT', () => cleanupOnExit(130));
+process.on('SIGTERM', () => cleanupOnExit(143));
 
 async function main() {
   ensureXvfbEnvironment();
@@ -93,10 +89,10 @@ async function main() {
     return;
   }
 
-  // 3. Deduplication Check (Only skip successfully submitted leads)
-  const processedUrls = getProcessedUrls(config.files.outputResults, { onlySuccessful: true });
+  // 3. Deduplication Check (skip confirmed and unverified submissions)
+  const processedUrls = await getProcessedUrls(config.files.outputResults, { onlySuccessful: true });
   const queue = leads.filter((lead) => !processedUrls.has(lead.url));
-  console.log(`[DataManager] ${processedUrls.size} previously successful lead(s) skipped.`);
+  console.log(`[DataManager] ${processedUrls.size} previously submitted lead(s) skipped.`);
   console.log(`[DataManager] ${queue.length} lead(s) ready in active queue.`);
 
   if (queue.length === 0) {
@@ -114,9 +110,11 @@ async function main() {
 
   // 4. Execution Loop
   let successfulSubmissions = 0;
+  let unverifiedSubmissions = 0;
   let failedSubmissions = 0;
   let totalCaptchasSolved = 0;
   let accessDenied = false;
+  let persistenceFailed = false;
   let processedCount = 0;
 
   for (let i = 0; i < queue.length; i++) {
@@ -256,11 +254,16 @@ async function main() {
       if (submitResult.submitted) {
         runStatus = submitResult.confirmationDetected ? 'SUCCESS' : 'SUBMITTED_UNVERIFIED';
         runMessage = submitResult.message;
-        successfulSubmissions++;
-        console.log(`[Success] Inquiry processed successfully (${runStatus}).`);
+        if (submitResult.confirmationDetected) {
+          successfulSubmissions++;
+          console.log('[Success] Inquiry confirmed by the page.');
+        } else {
+          unverifiedSubmissions++;
+          console.warn('[Unverified] Submit was clicked, but no confirmation was detected.');
+        }
 
         // Capture photographic proof screenshot for client audit trail
-        proofScreenshotPath = await captureErrorScreenshot(page, lead.url, 'proof_success');
+        proofScreenshotPath = await captureErrorScreenshot(page, lead.url, submitResult.confirmationDetected ? 'proof_success' : 'proof_unverified');
         if (proofScreenshotPath) {
           console.log(`[Proof] Submission screenshot saved: ${proofScreenshotPath}`);
         }
@@ -289,17 +292,23 @@ async function main() {
       const durationSec = Math.round((Date.now() - startTime) / 1000);
 
       // Log result to CSV
-      await logResult(config.files.outputResults, {
-        url: lead.url,
-        profileId: currentProfileId,
-        status: runStatus,
-        captchaSolved,
-        name: lead.name,
-        email: lead.email,
-        durationSec,
-        proofScreenshot: proofScreenshotPath || '',
-        message: runMessage,
-      });
+      try {
+        await logResult(config.files.outputResults, {
+          url: lead.url,
+          profileId: currentProfileId,
+          status: runStatus,
+          captchaSolved,
+          name: lead.name,
+          email: lead.email,
+          durationSec,
+          proofScreenshot: proofScreenshotPath || '',
+          message: runMessage,
+        });
+      } catch (err) {
+        persistenceFailed = true;
+        process.exitCode = 1;
+        console.error(`[DataManager] Failed to save result; stopping queue after cleanup: ${err.message}`);
+      }
       processedCount++;
 
       // Step H: Real-time Webhook Notification (e.g. to n8n to update Google Sheet status)
@@ -334,13 +343,13 @@ async function main() {
       }
 
       // Delay / Cooldown before next lead
-      if (!accessDenied && i < queue.length - 1) {
+      if (!accessDenied && !persistenceFailed && i < queue.length - 1) {
         const cooldownMs = randomBetween(config.delays.betweenLeadsMin, config.delays.betweenLeadsMax);
         console.log(`[Cooldown] Waiting ${(cooldownMs / 1000).toFixed(1)}s before launching next profile...`);
         await sleep(cooldownMs);
       }
     }
-    if (accessDenied) break;
+    if (accessDenied || persistenceFailed) break;
   }
 
   // Summary Report
@@ -349,15 +358,18 @@ async function main() {
   console.log('='.repeat(70));
   console.log(`Total Leads Processed : ${processedCount}`);
   console.log(`Stopped on Denial     : ${accessDenied ? 'YES' : 'NO'}`);
+  console.log(`Result Write Failed    : ${persistenceFailed ? 'YES' : 'NO'}`);
   console.log(`Profiles In Pool       : ${profilePool.length} (${profilePool.join(', ')})`);
-  console.log(`Successful Inquiries   : ${successfulSubmissions}`);
+  console.log(`Confirmed Inquiries    : ${successfulSubmissions}`);
+  console.log(`Unverified Attempts    : ${unverifiedSubmissions}`);
   console.log(`Failed Inquiries       : ${failedSubmissions}`);
   console.log(`CAPTCHAs Solved        : ${totalCaptchasSolved}`);
   console.log(`Results File           : ${config.files.outputResults}`);
   console.log('='.repeat(70) + '\n');
+  if (accessDenied || persistenceFailed) process.exitCode = 1;
 }
 
 main().catch((err) => {
   console.error('[Fatal Error] Unhandled process exception:', err);
-  cleanupOnExit();
+  cleanupOnExit(1);
 });

@@ -1,48 +1,20 @@
-# GitHub Actions to Hostinger VPS
+# GitHub Actions and Hostinger VPS deployment
 
-The workflow in `.github/workflows/stage-vps.yml` uploads each `main` commit into a unique directory under `/root/rpa-bot-releases/<commit>` and validates it. It does not modify `/root/rpa-bot`, restart a process, or send inquiries.
+The `Stage code on Hostinger VPS` workflow runs on pushes to `main` when the repository variable `VPS_STAGING_ENABLED` is `true`. It uploads each commit to `/home/rpa-deploy/releases/<commit>`, runs `npm ci`, and checks JavaScript syntax. It does not modify the live `/root/rpa-bot` directory, start the outreach bot, or send inquiries.
 
-## One-time VPS preparation
+## Current setup
 
-Run these commands in the Hostinger VPS terminal as the account that will receive deployments. The current workflow expects `root` because the existing bot is under `/root`.
+- The VPS SSH host fingerprint was verified against the Hostinger console.
+- A dedicated `rpa-deploy` Linux user and SSH key were created for GitHub Actions.
+- This user cannot read `/root/rpa-bot/.env`.
+- The live project was backed up to `/root/rpa-bot-backup-before-actions-20261014`.
+- GitHub Actions uses four repository secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_PRIVATE_KEY`, and `VPS_KNOWN_HOSTS`.
+- `VPS_STAGING_ENABLED` is the switch for automatic staging.
 
-```bash
-sudo apt-get update
-sudo apt-get install -y rsync
-node --version
-npm --version
-mkdir -p /root/.ssh /root/rpa-bot-releases
-chmod 700 /root/.ssh
-ssh-keygen -t ed25519 -f /root/.ssh/github-actions-deploy -N ''
-cat /root/.ssh/github-actions-deploy.pub >> /root/.ssh/authorized_keys
-chmod 600 /root/.ssh/authorized_keys
-```
+## Verify a run
 
-Copy the entire private key from `/root/.ssh/github-actions-deploy` directly into the GitHub secret described below. Do not put it in a chat, commit, or log. Once the GitHub secret is saved and a deployment works, remove the private key file from the VPS; leave the public key entry in `authorized_keys`.
+Open the repository's **Actions → Stage code on Hostinger VPS** workflow. A green run means that the commit was uploaded and validated in its own release directory. It does not mean Apartments.com accepted a request or that the live bot was changed.
 
-From the Hostinger console, inspect the server host-key fingerprint:
+## Live cutover
 
-```bash
-ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
-```
-
-For `VPS_KNOWN_HOSTS`, use one line containing the VPS IP, one space, then the key type and public key from `/etc/ssh/ssh_host_ed25519_key.pub`. Verify the fingerprint against the Hostinger console before saving it. Do not use `StrictHostKeyChecking=no`.
-
-## GitHub settings
-
-Open the repository's **Settings → Secrets and variables → Actions**. Add these four repository secrets:
-
-| Secret | Value |
-| --- | --- |
-| `VPS_HOST` | VPS public IP or DNS name |
-| `VPS_USER` | `root` for the current `/root` deployment path |
-| `VPS_SSH_PRIVATE_KEY` | Full private key created above |
-| `VPS_KNOWN_HOSTS` | Verified SSH host-key line for the VPS |
-
-Under **Variables**, set `VPS_STAGING_ENABLED` to `true` only after all four secrets exist. A push to `main` will then stage and validate the code automatically. You can also use **Actions → Stage code on Hostinger VPS → Run workflow**.
-
-The GitHub personal access token previously pasted into chat is not needed for this workflow. Revoke it.
-
-## First verification
-
-After a green workflow, check the new release directory and run the read-only diagnostic from that release with the live `.env` settings supplied separately. The release does not contain `.env`, leads, results, or screenshots. Keep the existing `/root/rpa-bot` untouched until its current Git state, runtime data, and AdsPower setup have been inspected and a cutover has been approved.
+The existing `/root/rpa-bot` directory is not a Git checkout and contains live `.env`, leads, results, screenshots, and dependencies. Inspect and preserve those before switching the scheduled bot to a validated release. Do not use `rsync --delete` on that directory. An automatic live activation needs a separate, narrowly scoped promotion step after the first release and VPS diagnostic pass.

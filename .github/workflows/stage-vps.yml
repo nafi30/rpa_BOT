@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           target="${VPS_USER}@${VPS_HOST}"
-          release="/root/rpa-bot-releases/${GITHUB_SHA}"
+          release="/home/rpa-deploy/releases/${GITHUB_SHA}"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" "mkdir -p '$release'"
           rsync -az --exclude='.git/' ./ "$target:$release/"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" \

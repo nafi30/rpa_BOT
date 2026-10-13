@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { getProcessedUrls, logResult } from '../lib/dataManager.js';
+import { getProcessedUrls, logResult, isAllowedLeadUrl } from '../lib/dataManager.js';
 
 function withResultsFile(content, run) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rpa-results-'));
@@ -48,3 +48,11 @@ test('rejects unknown results header before appending', () =>
     await assert.rejects(logResult(file, { url: 'https://example.com' }), /Unrecognized results CSV header/);
     assert.equal(fs.readFileSync(file, 'utf8'), 'OTHER,VALUE\n');
   }));
+
+test('accepts configured listing domains but skips the sheet demo form', () => {
+  const domains = ['apartments.com', 'hotpads.com'];
+  assert.equal(isAllowedLeadUrl('https://www.apartments.com/example/abc/', domains), true);
+  assert.equal(isAllowedLeadUrl('https://apartments.com/example/abc/', domains), true);
+  assert.equal(isAllowedLeadUrl('https://httpbin.org/forms/post', domains), false);
+  assert.equal(isAllowedLeadUrl('https://apartments.com.evil.example/listing', domains), false);
+});

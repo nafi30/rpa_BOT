@@ -29,6 +29,10 @@ export const config = {
     proxy: process.env.CAPSOLVER_PROXY || '',
   },
   files: {
+    allowedLeadDomains: (process.env.ALLOWED_LEAD_DOMAINS || 'apartments.com,hotpads.com')
+      .split(',')
+      .map((domain) => domain.trim().toLowerCase())
+      .filter(Boolean),
     inputLeads: path.resolve(__dirname, process.env.INPUT_LEADS_FILE || './leads.csv'),
     outputResults: path.resolve(__dirname, process.env.OUTPUT_RESULTS_FILE || './results.csv'),
     screenshotsDir: path.resolve(__dirname, process.env.SCREENSHOTS_DIR || './screenshots'),

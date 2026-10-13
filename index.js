@@ -6,7 +6,7 @@ import { CapSolverClient } from './lib/capsolver.js';
 import { connectToAdsPower, safeNavigate, captureErrorScreenshot, disconnectBrowser } from './lib/browser.js';
 import { fillContactForm, submitContactForm, sleep, randomBetween } from './lib/formFiller.js';
 import { getSelectorsForUrl } from './selectors.config.js';
-import { loadLeads, getProcessedUrls, logResult } from './lib/dataManager.js';
+import { loadLeads, getProcessedUrls, logResult, isAllowedLeadUrl } from './lib/dataManager.js';
 import { generateMessage } from './lib/spintaxEngine.js';
 
 function ensureXvfbEnvironment() {
@@ -91,7 +91,10 @@ async function main() {
 
   // 3. Deduplication Check (skip confirmed and unverified submissions)
   const processedUrls = await getProcessedUrls(config.files.outputResults, { onlySuccessful: true });
-  const queue = leads.filter((lead) => !processedUrls.has(lead.url));
+  const eligibleLeads = leads.filter((lead) => isAllowedLeadUrl(lead.url, config.files.allowedLeadDomains));
+  const unsupportedCount = leads.length - eligibleLeads.length;
+  const queue = eligibleLeads.filter((lead) => !processedUrls.has(lead.url));
+  console.log(`[DataManager] ${unsupportedCount} lead(s) skipped outside allowed domains: ${config.files.allowedLeadDomains.join(', ')}.`);
   console.log(`[DataManager] ${processedUrls.size} previously submitted lead(s) skipped.`);
   console.log(`[DataManager] ${queue.length} lead(s) ready in active queue.`);
 

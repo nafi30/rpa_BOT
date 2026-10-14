@@ -123,7 +123,6 @@ export const defaultSelectors = {
     ':has-text("Thanks for reaching out")',
     ':has-text("Inquiry submitted")',
     ':has-text("We will get back to you")',
-    ':has-text("Success")',
   ],
 };
 
@@ -133,6 +132,9 @@ export const defaultSelectors = {
  */
 export const domainConfigs = {
   'hotpads.com': {
+    successIndicators: [
+      'text=/^(Your message has been sent|Your inquiry has been sent|Message sent successfully|Thanks for contacting this property)[.!]?$/i',
+    ],
     modalTriggers: [
       'button:has-text("Message")',
       'button:has-text("Contact Property")',

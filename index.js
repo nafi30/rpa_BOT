@@ -138,7 +138,7 @@ async function main() {
   let unverifiedSubmissions = 0;
   let failedSubmissions = 0;
   let totalCaptchasSolved = 0;
-  let accessDenied = false;
+  let stopQueue = false;
   let persistenceFailed = false;
   let processedCount = 0;
 
@@ -278,6 +278,8 @@ async function main() {
         } else {
           unverifiedSubmissions++;
           console.warn('[Unverified] Submit was clicked, but no confirmation was detected.');
+          stopQueue = true;
+          console.error('[Stop] No delivery confirmation; pausing the queue for review.');
         }
 
         // Capture photographic proof screenshot for client audit trail
@@ -298,10 +300,13 @@ async function main() {
       failedSubmissions++;
       console.error(`[Error] Processing failed for ${lead.url}: ${err.message}`);
       if (err.code === 'ACCESS_DENIED') {
-        accessDenied = true;
+        stopQueue = true;
         console.error('[Stop] The site blocked access or submission. Stopping the queue.');
+      } else if (err.code === 'VERIFICATION_FAILED' || err.code === 'VERIFICATION_REQUIRED') {
+        stopQueue = true;
+        console.error('[Stop] HotPads verification did not complete; stopping the queue.');
       } else if (/is being used by .*not allowed to open/i.test(err.message)) {
-        accessDenied = true;
+        stopQueue = true;
         console.error('[Stop] AdsPower denied this profile to the current account. Resolve profile access before another run.');
       }
 
@@ -364,13 +369,13 @@ async function main() {
       }
 
       // Delay / Cooldown before next lead
-      if (!accessDenied && !persistenceFailed && i < queue.length - 1) {
+      if (!stopQueue && !persistenceFailed && i < queue.length - 1) {
         const cooldownMs = randomBetween(config.delays.betweenLeadsMin, config.delays.betweenLeadsMax);
         console.log(`[Cooldown] Waiting ${(cooldownMs / 1000).toFixed(1)}s before launching next profile...`);
         await sleep(cooldownMs);
       }
     }
-    if (accessDenied || persistenceFailed) break;
+    if (stopQueue || persistenceFailed) break;
   }
 
   // Summary Report
@@ -378,7 +383,7 @@ async function main() {
   console.log('                   AUTOMATION RUN COMPLETE                     ');
   console.log('='.repeat(70));
   console.log(`Total Leads Processed : ${processedCount}`);
-  console.log(`Stopped on Denial     : ${accessDenied ? 'YES' : 'NO'}`);
+  console.log(`Stopped for Review    : ${stopQueue ? 'YES' : 'NO'}`);
   console.log(`Result Write Failed    : ${persistenceFailed ? 'YES' : 'NO'}`);
   console.log(`Profiles In Pool       : ${profilePool.length} (${profilePool.join(', ')})`);
   console.log(`Confirmed Inquiries    : ${successfulSubmissions}`);
@@ -387,7 +392,7 @@ async function main() {
   console.log(`CAPTCHAs Solved        : ${totalCaptchasSolved}`);
   console.log(`Results File           : ${config.files.outputResults}`);
   console.log('='.repeat(70) + '\n');
-  if (accessDenied || persistenceFailed) process.exitCode = 1;
+  if (stopQueue || persistenceFailed) process.exitCode = 1;
 }
 
 main().catch((err) => {

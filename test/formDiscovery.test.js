@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findFirstVisible, validateInquiryFields, assertNoBlockingChallenge } from '../lib/formFiller.js';
+import { findFirstVisible, validateInquiryFields, assertNoBlockingChallenge, fillContactForm } from '../lib/formFiller.js';
 
 test('finds a visible enabled control after a hidden duplicate', async () => {
   const hidden = {
@@ -60,4 +60,11 @@ test('visible HotPads verification overlay stops submission before a blocked cli
   };
   await assert.rejects(assertNoBlockingChallenge(page), (error) =>
     error.code === 'ACCESS_DENIED' && /verification challenge/.test(error.message));
+});
+
+
+test('age-restricted housing declaration is never treated as generic consent', async () => {
+  const page = { locator: () => ({ innerText: async () => 'I confirm I meet the housing requirements for this listing.' }) };
+  await assert.rejects(fillContactForm(page, {}, {}), (error) =>
+    error.code === 'ELIGIBILITY_REVIEW_REQUIRED');
 });

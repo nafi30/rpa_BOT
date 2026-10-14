@@ -69,7 +69,6 @@ export const defaultSelectors = {
     'input[type="checkbox"][name*="agree" i]',
     'input[type="checkbox"][id*="terms" i]',
     'input[type="checkbox"][id*="consent" i]',
-    'input[type="checkbox"][required]',
   ],
 
   // Modal / Contact Opener Triggers (when forms are gated behind buttons)

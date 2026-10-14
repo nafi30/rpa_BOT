@@ -54,10 +54,6 @@ export const config = {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
-    customMessages: (process.env.CUSTOM_MESSAGES || '')
-      .split('|||')
-      .map((s) => s.trim())
-      .filter(Boolean),
     webhookUrl: process.env.WEBHOOK_URL || '',
   },
 };

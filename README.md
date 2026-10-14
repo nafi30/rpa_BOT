@@ -69,3 +69,9 @@ npm start
 4. **Resilient Form Discovery**: Uses multi-tier fallback selectors for Full Name, First/Last Name, Email, Phone, Message, and Consent checkboxes. Custom domain selectors can be added to [`selectors.config.js`](file:///f:/rpa%20bot/selectors.config.js).
 5. **Deduplication & Resumption**: Checks [`results.csv`](file:///f:/rpa%20bot/results.csv) before each lead so interruptions can be resumed without resending inquiries to previously processed URLs.
 6. **Graceful Teardown**: Captures timestamped screenshots to `./screenshots/` upon failures, closes the CDP session, and cleanly terminates the AdsPower profile.
+
+## Current sheet and outreach behavior
+
+Set `GOOGLE_SHEET_URL` in the private `.env` to the public n8n-populated sheet. Each `npm start` refreshes `leads.csv` before reading it, and stops if the download fails. A blank sheet `email` rotates through the eight distinct `SENDER_EMAILS` entries by listing position. A blank `message` uses the same initial corporate-lease inquiry every time, signed with `SENDER_NAME` and `SENDER_COMPANY`. A row-specific message overrides the default. Previously submitted URLs in `results.csv` are skipped.
+
+The bot submits only the first inquiry. ManyReach inbox connections, reply detection, and follow-up messages are separate configuration and are not implemented by this repository. Code and configuration checks do not establish that HotPads accepts live submissions; use a single authorized test listing before any broader run.

@@ -8,6 +8,8 @@ import { fillContactForm, validateInquiryFields, submitContactForm, sleep, rando
 import { getSelectorsForUrl } from './selectors.config.js';
 import { loadLeads, getProcessedUrls, logResult, isAllowedLeadUrl } from './lib/dataManager.js';
 import { generateMessage } from './lib/spintaxEngine.js';
+import { selectProfileIndex, selectSenderEmail } from './lib/rotation.js';
+import { syncGoogleSheet } from './scripts/syncGoogleSheet.js';
 
 function ensureXvfbEnvironment() {
   if (process.platform !== 'linux' || config.adspower.headless) return;
@@ -73,7 +75,13 @@ async function main() {
     proxy: config.capsolver.proxy,
   });
 
-  // 2. Ingest Leads
+  // 2. Refresh the n8n-populated sheet before reading leads. Fail closed if sync fails.
+  if (process.env.GOOGLE_SHEET_URL?.trim()) {
+    const synced = await syncGoogleSheet(process.env.GOOGLE_SHEET_URL.trim(), config.files.inputLeads);
+    if (!synced) throw new Error('Google Sheet sync failed; refusing to process stale leads.');
+  }
+
+  // 3. Ingest Leads
   console.log(`\n[DataManager] Loading leads from: ${config.files.inputLeads}`);
   let leads = [];
   try {
@@ -93,7 +101,12 @@ async function main() {
   const processedUrls = await getProcessedUrls(config.files.outputResults, { onlySuccessful: true });
   const eligibleLeads = leads.filter((lead) => isAllowedLeadUrl(lead.url, config.files.allowedLeadDomains));
   const unsupportedCount = leads.length - eligibleLeads.length;
-  const queue = eligibleLeads.filter((lead) => !processedUrls.has(lead.url));
+  const seenUrls = new Set();
+  const queue = eligibleLeads.map((lead, sourceIndex) => ({ lead, sourceIndex })).filter(({ lead }) => {
+    if (processedUrls.has(lead.url) || seenUrls.has(lead.url)) return false;
+    seenUrls.add(lead.url);
+    return true;
+  });
   console.log(`[DataManager] ${unsupportedCount} lead(s) skipped outside allowed domains: ${config.files.allowedLeadDomains.join(', ')}.`);
   console.log(`[DataManager] ${processedUrls.size} previously submitted lead(s) skipped.`);
   console.log(`[DataManager] ${queue.length} lead(s) ready in active queue.`);
@@ -101,6 +114,15 @@ async function main() {
   if (queue.length === 0) {
     console.log('[DataManager] All leads have already been processed. Nothing to do!');
     return;
+  }
+
+  // Blank sheet emails must resolve to the complete configured eight-inbox pool.
+  if (queue.some(({ lead }) => !lead.email)) {
+    const inboxes = config.sender.emails;
+    const valid = inboxes.length === 8 && new Set(inboxes.map((email) => email.toLowerCase())).size === 8 &&
+      inboxes.every((email) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email));
+    if (!valid) throw new Error('Blank lead emails require eight distinct valid SENDER_EMAILS entries.');
+    console.log(`[Rotation] ${inboxes.length} sender inboxes configured for blank sheet emails.`);
   }
 
   // Resolve Profile Pool
@@ -121,25 +143,17 @@ async function main() {
   let processedCount = 0;
 
   for (let i = 0; i < queue.length; i++) {
-    const lead = queue[i];
+    const { lead, sourceIndex } = queue[i];
     const leadIndex = i + 1;
     const startTime = Date.now();
 
-    // Select profile according to configured strategy
-    let profileIndex = 0;
-    if (config.adspower.rotationStrategy === 'round-robin') {
-      profileIndex = i % profilePool.length;
-    } else {
-      // 'batch': switches profile every LEADS_PER_PROFILE
-      profileIndex = Math.floor(i / config.adspower.leadsPerProfile) % profilePool.length;
-    }
+    // Use the original sheet position so retries keep the same profile and inbox.
+    const profileIndex = selectProfileIndex(
+      sourceIndex, profilePool.length, config.adspower.rotationStrategy, config.adspower.leadsPerProfile,
+    );
     currentProfileId = profilePool[profileIndex];
 
-    // Resolve sender identity (Henry's email rotation pool & defaults)
-    if (!lead.email && config.sender.emails.length > 0) {
-      const emailIndex = i % config.sender.emails.length;
-      lead.email = config.sender.emails[emailIndex];
-    }
+    if (!lead.email) lead.email = selectSenderEmail(sourceIndex, config.sender.emails);
     if (!lead.name || lead.name === 'Interested Buyer' || lead.name.toLowerCase() === 'henry') {
       lead.name = config.sender.defaultName || 'Hassam Abbas';
     }
@@ -152,12 +166,12 @@ async function main() {
     console.log(`[Profile ${profileIndex + 1}/${profilePool.length}] Active Profile: ${currentProfileId}`);
     console.log(`Sender Identity: ${lead.name} | Email: ${lead.email || 'N/A'} | Phone: ${lead.phone || 'N/A'}`);
 
-    // Dynamically resolve Spintax message variation for anti-spam safety
+    // Blank sheet messages use the fixed first outreach; follow-ups are outside this bot.
     lead.message = generateMessage({
       rawMessage: lead.message,
       leadName: lead.name,
     });
-    console.log(`[Spintax] Resolved Inquiry Message: "${lead.message.slice(0, 90)}..."`);
+    console.log(`[Message] First inquiry prepared (${lead.message.length} characters).`);
     console.log('-'.repeat(70));
 
     let playwrightBrowser = null;

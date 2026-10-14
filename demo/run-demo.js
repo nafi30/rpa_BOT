@@ -61,6 +61,7 @@ console.log('[Demo] Local listing: ' + demoUrl);
 console.log('[Demo] Running the real bot against one local inquiry form. No external message will be sent.');
 const env = {
   ...process.env,
+  GOOGLE_SHEET_URL: '',
   INPUT_LEADS_FILE: leadsFile,
   OUTPUT_RESULTS_FILE: resultsFile,
   SCREENSHOTS_DIR: screenshotsDir,

@@ -1,6 +1,9 @@
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
+import https from 'node:https';
+import tls from 'node:tls';
+import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 
 // Default to Henry's shared Google Sheet if no URL passed
@@ -35,9 +38,16 @@ export async function syncGoogleSheet(sheetUrl = DEFAULT_SHEET_URL, targetPath =
   console.log(`[GoogleSheet] Fetching CSV export from: ${exportUrl}`);
 
   try {
+    // Windows desktop Node may not load a locally installed trusted root CA by default.
+    // Add the OS trust store while retaining normal certificate verification.
+    const systemCas = process.platform === 'win32' && typeof tls.getCACertificates === 'function'
+      ? tls.getCACertificates('system') : [];
+    const httpsAgent = systemCas.length > 0
+      ? new https.Agent({ ca: [...tls.rootCertificates, ...systemCas] }) : undefined;
     const res = await axios.get(exportUrl, {
       responseType: 'text',
       timeout: 20000,
+      httpsAgent,
     });
 
     const csvContent = res.data;
@@ -67,5 +77,7 @@ export async function syncGoogleSheet(sheetUrl = DEFAULT_SHEET_URL, targetPath =
 }
 
 // Allow CLI execution: node scripts/syncGoogleSheet.js [OPTIONAL_SHEET_URL]
-const cliUrl = process.argv[2] || process.env.GOOGLE_SHEET_URL || DEFAULT_SHEET_URL;
-syncGoogleSheet(cliUrl);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const cliUrl = process.argv[2] || process.env.GOOGLE_SHEET_URL || DEFAULT_SHEET_URL;
+  syncGoogleSheet(cliUrl).then((ok) => { if (!ok) process.exitCode = 1; });
+}

@@ -299,7 +299,10 @@ async function main() {
       console.error(`[Error] Processing failed for ${lead.url}: ${err.message}`);
       if (err.code === 'ACCESS_DENIED') {
         accessDenied = true;
-        console.error('[Stop] Target denied page access. Stopping this run to avoid repeating the same failure across the queue.');
+        console.error('[Stop] The site blocked access or submission. Stopping the queue.');
+      } else if (/is being used by .*not allowed to open/i.test(err.message)) {
+        accessDenied = true;
+        console.error('[Stop] AdsPower denied this profile to the current account. Resolve profile access before another run.');
       }
 
       if (page) {

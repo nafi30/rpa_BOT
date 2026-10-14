@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findFirstVisible, validateInquiryFields } from '../lib/formFiller.js';
+import { findFirstVisible, validateInquiryFields, assertNoBlockingChallenge } from '../lib/formFiller.js';
 
 test('finds a visible enabled control after a hidden duplicate', async () => {
   const hidden = {
@@ -48,4 +48,16 @@ test('inquiry requires name, email, and message before any submit click', () => 
   assert.deepEqual(validateInquiryFields({ filledFields: ['firstName', 'email'] }, lead), ['message']);
   assert.deepEqual(validateInquiryFields({ filledFields: ['email', 'message'] }, lead), ['name']);
   assert.deepEqual(validateInquiryFields({ filledFields: ['name', 'email', 'message'] }, { ...lead, email: '' }), ['email']);
+});
+
+
+test('visible HotPads verification overlay stops submission before a blocked click', async () => {
+  const page = {
+    locator: () => ({
+      count: async () => 1,
+      first: () => ({ isVisible: async () => true }),
+    }),
+  };
+  await assert.rejects(assertNoBlockingChallenge(page), (error) =>
+    error.code === 'ACCESS_DENIED' && /verification challenge/.test(error.message));
 });

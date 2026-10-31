@@ -24,6 +24,15 @@ class ZohoCodeTest(unittest.TestCase):
         self.assertIsNone(module.code_from_message(raw, 'hassam@safestay.online'))
         self.assertIsNone(module.code_from_message(self.make_message('hassam.0@safestay.online', sender='attacker@example.com'), 'hassam.0@safestay.online'))
 
+    def test_hotpads_html_disguised_as_plain_text(self):
+        message = email.message.EmailMessage()
+        message['To'] = 'hassam.0@safestay.online'
+        message['From'] = 'HotPads <info@update.hotpads.com>'
+        message['Subject'] = 'Your HotPads one-time code'
+        message.set_content('<html><style>.x{width:123456px}</style><body>Here is your one-time code. '
+                            'This code will expire in 10 minutes. <strong>654321</strong></body></html>')
+        self.assertEqual(module.code_from_message(message.as_bytes(), 'hassam.0@safestay.online'), '654321')
+
 
 if __name__ == '__main__':
     unittest.main()

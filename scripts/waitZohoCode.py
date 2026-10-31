@@ -41,11 +41,12 @@ def code_from_message(raw, recipient):
             plain.append(part.get_content())
     body = '\n'.join(plain)
     if not body:
-        for part in message.walk():
-            if part.get_content_type() == 'text/html':
-                body += re.sub(r'<[^>]+>', ' ', part.get_content())
-    body = unescape(body)
-    nearby = re.findall(r'(?:one.time|verification|security|sign.in)\s+code\D{0,100}(\d{6})', body, re.I)
+        body = '\n'.join(part.get_content() for part in message.walk() if part.get_content_type() == 'text/html')
+    # HotPads includes HTML markup even in the text/plain MIME part.
+    body = re.sub(r'<(style|script)\b[^>]*>.*?</\1>', ' ', body, flags=re.I | re.S)
+    body = unescape(re.sub(r'<[^>]+>', ' ', body))
+    body = re.sub(r'\s+', ' ', body)
+    nearby = re.findall(r'(?:expire in \d+ minutes?\.?\s*|(?:one.time|verification|security|sign.in)\s+code\D{0,180})(\d{6})', body, re.I)
     codes = set(nearby or re.findall(r'(?<!\d)\d{6}(?!\d)', body))
     return next(iter(codes)) if len(codes) == 1 else None
 

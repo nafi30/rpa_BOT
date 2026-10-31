@@ -56,6 +56,15 @@ export const config = {
       .filter(Boolean),
     webhookUrl: process.env.WEBHOOK_URL || '',
   },
+  zoho: {
+    host: process.env.ZOHO_IMAP_HOST || 'imappro.zoho.com',
+    port: parseInt(process.env.ZOHO_IMAP_PORT || '993', 10),
+    user: process.env.ZOHO_IMAP_USER || '',
+    appPassword: process.env.ZOHO_IMAP_APP_PASSWORD || '',
+    folders: (process.env.ZOHO_IMAP_FOLDERS || 'INBOX,Newsletter,Spam,Notification')
+      .split(',').map((folder) => folder.trim()).filter(Boolean),
+    timeoutMs: parseInt(process.env.ZOHO_CODE_TIMEOUT_MS || '120000', 10),
+  },
 };
 
 /**

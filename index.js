@@ -10,6 +10,7 @@ import { loadLeads, getProcessedUrls, logResult, isAllowedLeadUrl } from './lib/
 import { generateMessage } from './lib/spintaxEngine.js';
 import { selectProfileIndex, selectSenderEmail } from './lib/rotation.js';
 import { syncGoogleSheet } from './scripts/syncGoogleSheet.js';
+import { waitForZohoCode } from './lib/zohoCode.js';
 
 function ensureXvfbEnvironment() {
   if (process.platform !== 'linux' || config.adspower.headless) return;
@@ -267,7 +268,10 @@ async function main() {
 
       // Step F: Form Submission
       console.log('[FormFiller] Submitting contact inquiry...');
-      const submitResult = await submitContactForm(page, selectors);
+      const submitResult = await submitContactForm(page, selectors, {
+        recipient: lead.email,
+        waitForCode: waitForZohoCode,
+      });
 
       if (submitResult.submitted) {
         runStatus = submitResult.confirmationDetected ? 'SUCCESS' : 'SUBMITTED_UNVERIFIED';

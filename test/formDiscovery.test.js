@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getSelectorsForUrl } from '../selectors.config.js';
-import { findFirstVisible, validateInquiryFields, assertNoBlockingChallenge, assertNoVerificationFailure, fillContactForm } from '../lib/formFiller.js';
+import { findFirstVisible, validateInquiryFields, assertNoBlockingChallenge, assertNoVerificationFailure, enterHotPadsVerificationCode, fillContactForm } from '../lib/formFiller.js';
 
 test('finds a visible enabled control after a hidden duplicate', async () => {
   const hidden = {
@@ -77,6 +77,25 @@ test('HotPads verification-code error is never counted as delivery', async () =>
     error.code === 'VERIFICATION_FAILED' && /not delivered/.test(error.message));
   const selectors = getSelectorsForUrl('https://hotpads.com/example/pad');
   assert.equal(selectors.successIndicators.some((selector) => selector.includes('has-text("Success")')), false);
+});
+
+test('HotPads six-digit code is entered in order before Continue', async () => {
+  const entered = [];
+  let continued = false;
+  const inputs = Array.from({ length: 6 }, (_, index) => ({
+    isVisible: async () => true,
+    fill: async (digit) => { entered[index] = digit; },
+  }));
+  const page = {
+    locator: () => ({ count: async () => inputs.length, nth: (index) => inputs[index] }),
+    getByRole: () => ({ count: async () => 1, first: () => ({
+      isEnabled: async () => entered.join('').length === 6,
+      click: async () => { continued = true; },
+    }) }),
+  };
+  await enterHotPadsVerificationCode(page, '123456');
+  assert.deepEqual(entered, ['1', '2', '3', '4', '5', '6']);
+  assert.equal(continued, true);
 });
 
 test('55+ listing requires human eligibility review even if the checkbox is hidden', async () => {

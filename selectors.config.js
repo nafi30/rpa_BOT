@@ -133,7 +133,7 @@ export const defaultSelectors = {
 export const domainConfigs = {
   'hotpads.com': {
     successIndicators: [
-      'text=/^(Your message has been sent|Your inquiry has been sent|Message sent successfully|Thanks for contacting this property)[.!]?$/i',
+      'text=/^(Your message was sent|Your message has been sent|Your inquiry has been sent|Message sent successfully|Thanks for contacting this property)[.!]?$/i',
     ],
     modalTriggers: [
       'button:has-text("Message")',

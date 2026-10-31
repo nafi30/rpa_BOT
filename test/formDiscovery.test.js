@@ -98,6 +98,26 @@ test('HotPads six-digit code is entered in order before Continue', async () => {
   assert.equal(continued, true);
 });
 
+test('read-only signed-in email must match the intended alias', async () => {
+  const email = {
+    getAttribute: async () => '',
+    inputValue: async () => 'hassam.0@safestay.online',
+  };
+  const page = {
+    title: async () => 'Gables Ponce',
+    url: () => 'https://hotpads.com/gables-ponce/pad',
+    locator: () => ({ innerText: async () => '', count: async () => 0 }),
+  };
+  const { fillContactForm } = await import('../lib/formFiller.js');
+  // Keep this test focused on the mismatch guard; the other fields are irrelevant.
+  const selectors = { email: ['#email'] };
+  page.locator = (selector) => selector === '#email'
+    ? ({ count: async () => 1, nth: () => ({ ...email, isVisible: async () => true, isEnabled: async () => true, scrollIntoViewIfNeeded: async () => {} }) })
+    : ({ innerText: async () => '', count: async () => 0 });
+  await assert.rejects(fillContactForm(page, { name: 'Hassam Abbas', email: 'other@safestay.online', message: 'Hello' }, selectors),
+    (error) => error.code === 'AUTHENTICATED_EMAIL_MISMATCH');
+});
+
 test('55+ listing requires human eligibility review even if the checkbox is hidden', async () => {
   const page = {
     title: async () => 'Overture Doral - 55+ Active Adult Homes',

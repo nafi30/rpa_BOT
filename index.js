@@ -309,6 +309,9 @@ async function main() {
       } else if (err.code === 'VERIFICATION_FAILED' || err.code === 'VERIFICATION_REQUIRED') {
         stopQueue = true;
         console.error('[Stop] HotPads verification did not complete; stopping the queue.');
+      } else if (err.code === 'AUTHENTICATED_EMAIL_MISMATCH') {
+        stopQueue = true;
+        console.error('[Stop] This AdsPower profile is signed in with a different email; stopping the queue to avoid using the wrong sender.');
       } else if (/is being used by .*not allowed to open/i.test(err.message)) {
         stopQueue = true;
         console.error('[Stop] AdsPower denied this profile to the current account. Resolve profile access before another run.');

@@ -1,0 +1,1 @@
+rpa-deploy ALL=(root) NOPASSWD: /usr/local/sbin/promote-rpa-release *

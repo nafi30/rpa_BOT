@@ -18,3 +18,10 @@ scripts/testProxy.js
 scripts/updateProfileProxy.js
 
 demo/output/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Temporary scratch files
+tmp/
